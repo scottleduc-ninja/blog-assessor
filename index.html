@@ -136,19 +136,7 @@
     <span class="tag">CTE Tool</span>
   </div>
 
-  <!-- API KEY -->
-  <div class="setup-panel" id="api-box">
-    <div class="setup-title">Anthropic API Key <span style="font-size:0.6rem;background:var(--green);color:#fff;padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.4rem;vertical-align:middle;">SAVED BETWEEN SESSIONS</span></div>
-    <div class="setup-desc">
-      Enter your Anthropic API key once — it will be remembered in this browser automatically.
-      Get yours at <a href="https://console.anthropic.com" target="_blank" style="color:var(--rust);">console.anthropic.com</a> → API Keys → Create Key.
-    </div>
-    <div class="input-row">
-      <input class="text-input" id="api-key-input" type="password" placeholder="sk-ant-api03-…" autocomplete="off" oninput="onApiKeyInput()">
-      <button class="save-btn" id="api-save-btn" onclick="saveApiKey()" disabled>Save →</button>
-    </div>
-    <div class="setup-status" id="api-status"></div>
-  </div>
+
 
   <!-- BEST PRACTICES UPLOAD (persistent) -->
   <div class="setup-panel" id="bp-box">
@@ -250,7 +238,6 @@
 </div>
 <script>
   // ── State ──
-  var apiKey = '';
   var rubricFile = null;
   var exemplarFile = null;
   var bpSessionFile = null;
@@ -258,23 +245,11 @@
   var bpSavedName = '';
   var reportObjectUrl = null;
 
-  var LS_BP_KEY   = 'blogAssessor_bestPractices_b64';
-  var LS_BP_NAME  = 'blogAssessor_bestPractices_name';
-  var LS_API_KEY  = 'blogAssessor_apiKey';
+  var LS_BP_KEY  = 'blogAssessor_bestPractices_b64';
+  var LS_BP_NAME = 'blogAssessor_bestPractices_name';
 
   (function init() {
     try {
-      // Restore API key
-      var savedKey = localStorage.getItem(LS_API_KEY);
-      if (savedKey) {
-        apiKey = savedKey;
-        document.getElementById('api-box').classList.add('saved');
-        document.getElementById('api-status').className = 'setup-status ok';
-        document.getElementById('api-status').textContent = '✓ API key saved';
-        document.getElementById('api-key-input').placeholder = '••••••••••••••••••••';
-        document.getElementById('api-save-btn').disabled = true;
-      }
-      // Restore Best Practices
       var saved = localStorage.getItem(LS_BP_KEY);
       var name  = localStorage.getItem(LS_BP_NAME) || 'best-practices.pdf';
       if (saved) {
@@ -287,25 +262,7 @@
     checkReady();
   })();
 
-  // ── API Key ──
-  function onApiKeyInput() {
-    var val = document.getElementById('api-key-input').value.trim();
-    document.getElementById('api-save-btn').disabled = val.length < 10;
-  }
 
-  function saveApiKey() {
-    var val = document.getElementById('api-key-input').value.trim();
-    if (!val) return;
-    apiKey = val;
-    try { localStorage.setItem(LS_API_KEY, val); } catch(e) {}
-    document.getElementById('api-box').classList.add('saved');
-    document.getElementById('api-status').className = 'setup-status ok';
-    document.getElementById('api-status').textContent = '✓ API key saved';
-    document.getElementById('api-key-input').value = '';
-    document.getElementById('api-key-input').placeholder = '••••••••••••••••••••';
-    document.getElementById('api-save-btn').disabled = true;
-    checkReady();
-  }
 
   // ── Best Practices (persistent) ──
   function handleBpDrop(e) {
@@ -430,12 +387,11 @@
   }
 
   function checkReady() {
-    var hasKey     = apiKey.length > 0;
     var hasRubric  = !!rubricFile;
     var hasExemp   = !!exemplarFile;
     var hasBP      = !!(bpSessionFile || bpB64Saved);
     var hasText    = document.getElementById('post-text').value.trim().length > 80;
-    document.getElementById('assess-btn').disabled = !(hasKey && hasRubric && hasExemp && hasBP && hasText);
+    document.getElementById('assess-btn').disabled = !(hasRubric && hasExemp && hasBP && hasText);
   }
 
   function fileToBase64(file) {
@@ -482,13 +438,10 @@
 
       setStatus('Assessing post against rubric…');
 
-      fetch('https://api.anthropic.com/v1/messages', {
+      fetch('/api/assess', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-allow-cors': 'true',
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
@@ -533,7 +486,6 @@
   // ── Show results ──
   function showResults(results, studentName) {
     document.getElementById('form-section').classList.add('hidden');
-    document.getElementById('api-box').classList.add('hidden');
     document.getElementById('bp-box').classList.add('hidden');
     document.getElementById('results-section').classList.remove('hidden');
 
@@ -584,7 +536,6 @@
   function handleReset() {
     document.getElementById('results-section').classList.add('hidden');
     document.getElementById('form-section').classList.remove('hidden');
-    document.getElementById('api-box').classList.remove('hidden');
     document.getElementById('bp-box').classList.remove('hidden');
     setError('');
     if (reportObjectUrl) { URL.revokeObjectURL(reportObjectUrl); reportObjectUrl = null; }
