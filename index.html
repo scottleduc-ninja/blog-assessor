@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog Post Assessor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1714; --paper: #f5f0e8; --cream: #ede8db;
+    --rust: #c1440e; --gold: #d4a843; --muted: #8a8070; --line: #d4cfc5;
+    --green: #2d7a3a;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; }
+  .app { min-height: 100vh; padding: 2rem; max-width: 860px; margin: 0 auto; }
+
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.2rem; margin-bottom: 2.5rem; display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+  .masthead h1 { font-family: 'Instrument Serif', serif; font-size: 2.6rem; letter-spacing: -0.02em; line-height: 1; }
+  .masthead .tag { font-family: 'DM Mono', monospace; font-size: 0.65rem; background: var(--rust); color: #fff; padding: 0.25rem 0.5rem; border-radius: 2px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* Setup panel */
+  .setup-panel { background: var(--cream); border: 1.5px solid var(--line); border-radius: 8px; padding: 1.5rem 1.75rem; margin-bottom: 1.5rem; }
+  .setup-panel.saved { border-color: var(--gold); }
+  .setup-title { font-family: 'DM Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.6rem; }
+  .setup-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.55; margin-bottom: 0.9rem; }
+  .setup-desc a { color: var(--rust); }
+  .input-row { display: flex; gap: 0.75rem; align-items: stretch; }
+  .text-input { flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 6px; padding: 0.7rem 1rem; font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--ink); outline: none; transition: border-color 0.2s; }
+  .text-input:focus { border-color: var(--rust); }
+  .save-btn { background: var(--rust); color: #fff; border: none; border-radius: 6px; padding: 0.7rem 1.2rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: opacity 0.2s; }
+  .save-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .save-btn:hover:not(:disabled) { opacity: 0.85; }
+  .setup-status { font-family: 'DM Mono', monospace; font-size: 0.72rem; margin-top: 0.5rem; color: var(--muted); }
+  .setup-status.ok { color: var(--green); }
+  .setup-status.warn { color: var(--rust); }
+
+  /* Persistent PDF strip */
+  .persist-strip { display: flex; align-items: center; gap: 0.75rem; background: #f0faf2; border: 1.5px solid #a8d5b0; border-radius: 6px; padding: 0.7rem 1rem; margin-bottom: 1.5rem; }
+  .persist-strip .persist-icon { font-size: 1.2rem; flex-shrink: 0; }
+  .persist-info { flex: 1; }
+  .persist-name { font-size: 0.82rem; font-weight: 600; color: var(--green); }
+  .persist-sub { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); margin-top: 2px; }
+  .persist-clear { background: transparent; border: 1px solid #a8d5b0; border-radius: 4px; padding: 0.3rem 0.6rem; font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+  .persist-clear:hover { border-color: var(--rust); color: var(--rust); }
+
+  /* Upload grid */
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+  .upload-zone { border: 1.5px dashed var(--line); border-radius: 6px; padding: 1.25rem 0.75rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; background: var(--cream); position: relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--rust); background: #faf6ee; }
+  .upload-zone.filled { border-color: var(--gold); border-style: solid; }
+  .upload-zone.persist-filled { border-color: var(--green); border-style: solid; background: #f0faf2; }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-zone .icon { font-size: 1.6rem; margin-bottom: 0.35rem; }
+  .upload-zone .lbl { font-family: 'DM Mono', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.3rem; }
+  .upload-zone .filename { font-size: 0.75rem; font-weight: 500; color: var(--rust); word-break: break-all; }
+  .upload-zone.persist-filled .filename { color: var(--green); }
+  .upload-zone .hint { font-size: 0.72rem; color: var(--muted); }
+  .upload-zone .persist-badge { font-family: 'DM Mono', monospace; font-size: 0.6rem; background: var(--green); color: #fff; border-radius: 2px; padding: 0.15rem 0.35rem; margin-top: 0.3rem; display: inline-block; letter-spacing: 0.06em; }
+
+  .field-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.45rem; }
+  .name-input { width: 100%; background: var(--cream); border: 1.5px solid var(--line); border-radius: 6px; padding: 0.75rem 1rem; font-family: 'DM Sans', sans-serif; font-size: 0.92rem; color: var(--ink); outline: none; transition: border-color 0.2s; margin-bottom: 1.25rem; }
+  .name-input:focus { border-color: var(--rust); }
+  .name-input::placeholder { color: var(--muted); }
+  .name-input.filled { border-color: var(--gold); border-style: solid; }
+
+  .post-textarea { width: 100%; min-height: 180px; background: var(--cream); border: 1.5px solid var(--line); border-radius: 6px; padding: 0.85rem 1rem; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; color: var(--ink); outline: none; resize: vertical; transition: border-color 0.2s; line-height: 1.55; margin-bottom: 0.4rem; }
+  .post-textarea:focus { border-color: var(--rust); }
+  .post-textarea::placeholder { color: var(--muted); }
+  .post-textarea.filled { border-color: var(--gold); border-style: solid; }
+
+  .char-count { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); text-align: right; margin-bottom: 1rem; }
+  .char-count.good { color: var(--green); }
+
+  .assess-btn { width: 100%; background: var(--rust); color: #fff; border: none; border-radius: 6px; padding: 0.9rem 1.5rem; font-family: 'DM Mono', monospace; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s, transform 0.1s; }
+  .assess-btn:hover:not(:disabled) { opacity: 0.88; }
+  .assess-btn:active:not(:disabled) { transform: scale(0.98); }
+  .assess-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .status-bar { background: var(--cream); border: 1.5px solid var(--rust); border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--rust); display: flex; align-items: center; gap: 0.75rem; }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--rust); border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box { background: #fef2f0; border: 1.5px solid #e8a090; border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; font-size: 0.85rem; color: #8b2210; line-height: 1.6; }
+
+  .hidden { display: none !important; }
+  .results { animation: fadeUp 0.4s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .grade-banner { background: var(--ink); color: var(--paper); border-radius: 8px; padding: 1.8rem 2rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .grade-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; margin-bottom: 0.3rem; }
+  .grade-value { font-family: 'Instrument Serif', serif; font-size: 4rem; line-height: 1; color: var(--gold); }
+  .overall-comment { max-width: 420px; font-size: 0.9rem; opacity: 0.88; line-height: 1.55; }
+
+  .section-head { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--line); }
+
+  .criteria-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
+  .criterion { background: var(--cream); border: 1.5px solid var(--line); border-radius: 8px; overflow: hidden; transition: border-color 0.2s; }
+  .criterion:hover { border-color: var(--gold); }
+  .criterion-header { display: flex; align-items: center; padding: 0.9rem 1.1rem; gap: 1rem; cursor: pointer; user-select: none; }
+  .criterion-num { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); width: 1.2rem; flex-shrink: 0; }
+  .criterion-name { font-weight: 500; font-size: 0.92rem; flex: 1; }
+  .criterion-score { font-family: 'DM Mono', monospace; font-size: 0.8rem; font-weight: 500; }
+  .score-high { color: var(--green); } .score-mid { color: #b07a10; } .score-low { color: var(--rust); }
+  .criterion-chevron { color: var(--muted); font-size: 0.7rem; transition: transform 0.2s; }
+  .criterion-chevron.open { transform: rotate(90deg); }
+  .criterion-body { border-top: 1px solid var(--line); padding: 1rem 1.1rem; font-size: 0.85rem; line-height: 1.6; color: #3a3530; }
+
+  .suggestions-box { background: #fefbf4; border: 1.5px solid var(--gold); border-radius: 8px; padding: 1.25rem 1.4rem; margin-bottom: 1.5rem; }
+  .suggestions-box ul { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; }
+  .suggestions-box li { padding-left: 1.2rem; position: relative; font-size: 0.87rem; line-height: 1.55; color: #3a3530; }
+  .suggestions-box li::before { content: '→'; position: absolute; left: 0; color: var(--gold); font-family: 'DM Mono', monospace; }
+
+  .action-row { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+  .download-btn { flex: 1; background: var(--ink); color: var(--paper); border: none; border-radius: 6px; padding: 0.75rem 1.25rem; font-family: 'DM Mono', monospace; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: opacity 0.2s; text-decoration: none; display: flex; align-items: center; justify-content: center; }
+  .download-btn:hover { opacity: 0.8; }
+  .reset-btn { background: transparent; border: 1.5px solid var(--line); border-radius: 6px; padding: 0.75rem 1.2rem; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; color: var(--muted); transition: border-color 0.2s, color 0.2s; }
+  .reset-btn:hover { border-color: var(--rust); color: var(--rust); }
+  .hint-text { font-size: 0.75rem; color: var(--muted); margin-bottom: 1.5rem; line-height: 1.5; }
+
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    .grade-banner { flex-direction: column; align-items: flex-start; }
+    .masthead h1 { font-size: 1.8rem; }
+    .action-row { flex-direction: column; }
+    .input-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="masthead">
+    <h1>Blog Post Assessor</h1>
+    <span class="tag">CTE Tool</span>
+  </div>
+
+  <!-- API KEY -->
+  <div class="setup-panel" id="api-box">
+    <div class="setup-title">Anthropic API Key <span style="font-size:0.6rem;background:var(--green);color:#fff;padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.4rem;vertical-align:middle;">SAVED BETWEEN SESSIONS</span></div>
+    <div class="setup-desc">
+      Enter your Anthropic API key once — it will be remembered in this browser automatically.
+      Get yours at <a href="https://console.anthropic.com" target="_blank" style="color:var(--rust);">console.anthropic.com</a> → API Keys → Create Key.
+    </div>
+    <div class="input-row">
+      <input class="text-input" id="api-key-input" type="password" placeholder="sk-ant-api03-…" autocomplete="off" oninput="onApiKeyInput()">
+      <button class="save-btn" id="api-save-btn" onclick="saveApiKey()" disabled>Save →</button>
+    </div>
+    <div class="setup-status" id="api-status"></div>
+  </div>
+
+  <!-- BEST PRACTICES UPLOAD (persistent) -->
+  <div class="setup-panel" id="bp-box">
+    <div class="setup-title">Best Practices PDF <span style="font-size:0.6rem;background:var(--green);color:#fff;padding:0.15rem 0.4rem;border-radius:2px;margin-left:0.4rem;vertical-align:middle;">SAVED BETWEEN SESSIONS</span></div>
+    <div class="setup-desc">
+      Upload your Best Practices PDF once and it will be remembered in this browser automatically — no need to re-upload each time.
+    </div>
+    <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+      <div class="upload-zone" id="bp-zone" style="flex:1;min-width:200px;padding:1rem;"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleBpDrop(event)">
+        <input type="file" accept=".pdf" id="bp-input" onchange="handleBpFile(this.files[0])">
+        <div class="icon">📚</div>
+        <div class="lbl">Best Practices</div>
+        <div class="hint" id="bp-hint">Drop PDF or click to browse</div>
+      </div>
+      <div id="bp-saved-info" class="hidden" style="flex:1;min-width:200px;">
+        <div class="persist-strip" style="margin-bottom:0;">
+          <div class="persist-icon">✅</div>
+          <div class="persist-info">
+            <div class="persist-name" id="bp-saved-name"></div>
+            <div class="persist-sub">Saved in this browser · loads automatically</div>
+          </div>
+          <button class="persist-clear" onclick="clearBestPractices()">Remove</button>
+        </div>
+      </div>
+    </div>
+    <div class="setup-status" id="bp-status"></div>
+  </div>
+
+  <!-- FORM -->
+  <div id="form-section">
+    <div class="grid">
+      <div class="upload-zone" id="rubric-zone"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event,'rubric')">
+        <input type="file" accept=".pdf" id="rubric-input" onchange="handleFile('rubric',this.files[0])">
+        <div class="icon">📋</div>
+        <div class="lbl">Assessment Rubric</div>
+        <div class="hint" id="rubric-hint">Drop PDF or click to browse</div>
+      </div>
+      <div class="upload-zone" id="exemplar-zone"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event,'exemplar')">
+        <input type="file" accept=".pdf" id="exemplar-input" onchange="handleFile('exemplar',this.files[0])">
+        <div class="icon">⭐</div>
+        <div class="lbl">Exemplar Post</div>
+        <div class="hint" id="exemplar-hint">Drop PDF or click to browse</div>
+      </div>
+      <div class="upload-zone" id="bp-session-zone"
+        ondragover="event.preventDefault();this.classList.add('dragover')"
+        ondragleave="this.classList.remove('dragover')"
+        ondrop="handleDrop(event,'bp-session')">
+        <input type="file" accept=".pdf" id="bp-session-input" onchange="handleFile('bp-session',this.files[0])">
+        <div class="icon">📚</div>
+        <div class="lbl">Best Practices</div>
+        <div class="hint" id="bp-session-hint">Drop PDF or click to browse</div>
+      </div>
+    </div>
+
+    <div class="field-label">Student Name</div>
+    <input class="name-input" id="student-name" type="text" placeholder="e.g. Bennett Blodgett"
+      oninput="this.classList.toggle('filled', this.value.trim().length > 0)">
+
+    <div class="field-label">Student Blog Post</div>
+    <textarea class="post-textarea" id="post-text"
+      placeholder="Open the student's latest blog post, select all text (Cmd/Ctrl+A), copy it, and paste it here…"
+      oninput="updateWordCount()"></textarea>
+    <div class="char-count" id="word-count">No text yet</div>
+
+    <button class="assess-btn" id="assess-btn" onclick="handleAssess()" disabled>Assess Post →</button>
+    <div class="status-bar hidden" id="status-bar"><div class="spinner"></div><span id="status-text"></span></div>
+    <div class="error-box hidden" id="error-box"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-section" class="results hidden">
+    <div class="grade-banner">
+      <div>
+        <div class="grade-label">Overall Grade</div>
+        <div class="grade-value" id="grade-value"></div>
+      </div>
+      <div class="overall-comment" id="overall-comment"></div>
+    </div>
+    <div class="section-head">Rubric Criteria — click to expand feedback</div>
+    <div class="criteria-list" id="criteria-list"></div>
+    <div class="section-head">Suggestions for next post</div>
+    <div class="suggestions-box"><ul id="suggestions-list"></ul></div>
+    <div class="action-row">
+      <a class="download-btn" id="download-link" href="#" download="blog-assessment.html">↓ Download Report</a>
+      <button class="reset-btn" onclick="handleReset()">← New Assessment</button>
+    </div>
+    <p class="hint-text">Opens as an HTML file — use <strong>File → Print → Save as PDF</strong> in your browser to get a PDF.</p>
+  </div>
+
+</div>
+<script>
+  // ── State ──
+  var apiKey = '';
+  var rubricFile = null;
+  var exemplarFile = null;
+  var bpSessionFile = null;
+  var bpB64Saved = null;
+  var bpSavedName = '';
+  var reportObjectUrl = null;
+
+  var LS_BP_KEY   = 'blogAssessor_bestPractices_b64';
+  var LS_BP_NAME  = 'blogAssessor_bestPractices_name';
+  var LS_API_KEY  = 'blogAssessor_apiKey';
+
+  (function init() {
+    try {
+      // Restore API key
+      var savedKey = localStorage.getItem(LS_API_KEY);
+      if (savedKey) {
+        apiKey = savedKey;
+        document.getElementById('api-box').classList.add('saved');
+        document.getElementById('api-status').className = 'setup-status ok';
+        document.getElementById('api-status').textContent = '✓ API key saved';
+        document.getElementById('api-key-input').placeholder = '••••••••••••••••••••';
+        document.getElementById('api-save-btn').disabled = true;
+      }
+      // Restore Best Practices
+      var saved = localStorage.getItem(LS_BP_KEY);
+      var name  = localStorage.getItem(LS_BP_NAME) || 'best-practices.pdf';
+      if (saved) {
+        bpB64Saved = saved;
+        bpSavedName = name;
+        showBpSaved(name);
+        updateBpSessionZone();
+      }
+    } catch(e) {}
+    checkReady();
+  })();
+
+  // ── API Key ──
+  function onApiKeyInput() {
+    var val = document.getElementById('api-key-input').value.trim();
+    document.getElementById('api-save-btn').disabled = val.length < 10;
+  }
+
+  function saveApiKey() {
+    var val = document.getElementById('api-key-input').value.trim();
+    if (!val) return;
+    apiKey = val;
+    try { localStorage.setItem(LS_API_KEY, val); } catch(e) {}
+    document.getElementById('api-box').classList.add('saved');
+    document.getElementById('api-status').className = 'setup-status ok';
+    document.getElementById('api-status').textContent = '✓ API key saved';
+    document.getElementById('api-key-input').value = '';
+    document.getElementById('api-key-input').placeholder = '••••••••••••••••••••';
+    document.getElementById('api-save-btn').disabled = true;
+    checkReady();
+  }
+
+  // ── Best Practices (persistent) ──
+  function handleBpDrop(e) {
+    e.preventDefault();
+    document.getElementById('bp-zone').classList.remove('dragover');
+    var f = e.dataTransfer.files[0];
+    if (f) handleBpFile(f);
+  }
+
+  function handleBpFile(file) {
+    if (!file) return;
+    var st = document.getElementById('bp-status');
+    st.className = 'setup-status';
+    st.textContent = 'Saving…';
+    fileToBase64(file).then(function(b64) {
+      try {
+        localStorage.setItem(LS_BP_KEY, b64);
+        localStorage.setItem(LS_BP_NAME, file.name);
+        bpB64Saved = b64;
+        bpSavedName = file.name;
+        showBpSaved(file.name);
+        updateBpSessionZone();
+        st.className = 'setup-status ok';
+        st.textContent = '✓ Saved to browser storage — will load automatically next time';
+      } catch(e) {
+        // Storage quota exceeded — use for session only
+        bpB64Saved = b64;
+        bpSavedName = file.name;
+        showBpSaved(file.name);
+        updateBpSessionZone();
+        st.className = 'setup-status warn';
+        st.textContent = '⚠ File too large to save permanently — available for this session only';
+      }
+      checkReady();
+    });
+  }
+
+  function showBpSaved(name) {
+    document.getElementById('bp-zone').classList.add('hidden');
+    document.getElementById('bp-saved-info').classList.remove('hidden');
+    document.getElementById('bp-saved-name').textContent = name;
+  }
+
+  function clearBestPractices() {
+    try { localStorage.removeItem(LS_BP_KEY); localStorage.removeItem(LS_BP_NAME); } catch(e) {}
+    bpB64Saved = null;
+    bpSavedName = '';
+    bpSessionFile = null;
+    document.getElementById('bp-zone').classList.remove('hidden');
+    document.getElementById('bp-saved-info').classList.add('hidden');
+    document.getElementById('bp-status').textContent = '';
+    updateBpSessionZone();
+    checkReady();
+  }
+
+  // Update the small upload zone in the form grid
+  function updateBpSessionZone() {
+    var zone = document.getElementById('bp-session-zone');
+    var hint = document.getElementById('bp-session-hint');
+    if (bpB64Saved || bpSessionFile) {
+      zone.classList.remove('filled');
+      zone.classList.add('persist-filled');
+      hint.className = 'filename';
+      hint.textContent = '✓ ' + (bpSessionFile ? bpSessionFile.name : bpSavedName);
+      // Add saved badge if from localStorage
+      if (!bpSessionFile && bpB64Saved) {
+        var badge = zone.querySelector('.persist-badge');
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'persist-badge';
+          badge.textContent = 'auto-loaded';
+          zone.appendChild(badge);
+        }
+      }
+    } else {
+      zone.classList.remove('persist-filled', 'filled');
+      var badge2 = zone.querySelector('.persist-badge');
+      if (badge2) badge2.remove();
+      hint.className = 'hint';
+      hint.textContent = 'Drop PDF or click to browse';
+    }
+  }
+
+  // ── Per-assessment uploads ──
+  function handleDrop(e, which) {
+    e.preventDefault();
+    document.getElementById(which + '-zone').classList.remove('dragover');
+    var f = e.dataTransfer.files[0];
+    if (f) handleFile(which, f);
+  }
+
+  function handleFile(which, file) {
+    if (!file) return;
+    if (which === 'rubric') {
+      rubricFile = file;
+      markZone('rubric', file.name);
+    } else if (which === 'exemplar') {
+      exemplarFile = file;
+      markZone('exemplar', file.name);
+    } else if (which === 'bp-session') {
+      bpSessionFile = file;
+      updateBpSessionZone();
+    }
+    checkReady();
+  }
+
+  function markZone(which, name) {
+    document.getElementById(which + '-zone').classList.add('filled');
+    var hint = document.getElementById(which + '-hint');
+    hint.className = 'filename';
+    hint.textContent = '✓ ' + name;
+  }
+
+  function updateWordCount() {
+    var text = document.getElementById('post-text').value.trim();
+    var words = text ? text.split(/\s+/).length : 0;
+    var el = document.getElementById('word-count');
+    el.textContent = words > 0 ? words + ' words' : 'No text yet';
+    el.className = 'char-count' + (words > 30 ? ' good' : '');
+    document.getElementById('post-text').classList.toggle('filled', text.length > 80);
+    checkReady();
+  }
+
+  function checkReady() {
+    var hasKey     = apiKey.length > 0;
+    var hasRubric  = !!rubricFile;
+    var hasExemp   = !!exemplarFile;
+    var hasBP      = !!(bpSessionFile || bpB64Saved);
+    var hasText    = document.getElementById('post-text').value.trim().length > 80;
+    document.getElementById('assess-btn').disabled = !(hasKey && hasRubric && hasExemp && hasBP && hasText);
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function(resolve, reject) {
+      var r = new FileReader();
+      r.onload = function() { resolve(r.result.split(',')[1]); };
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ── UI helpers ──
+  function setStatus(msg) {
+    var bar = document.getElementById('status-bar');
+    if (msg) { bar.classList.remove('hidden'); document.getElementById('status-text').textContent = msg; }
+    else { bar.classList.add('hidden'); }
+  }
+  function setError(msg) {
+    var box = document.getElementById('error-box');
+    if (msg) { box.classList.remove('hidden'); box.innerHTML = '<strong>&#9888; Error</strong><br>' + msg; }
+    else { box.classList.add('hidden'); }
+  }
+
+  // ── Assess ──
+  function handleAssess() {
+    setError('');
+    setStatus('Reading PDFs…');
+    document.getElementById('assess-btn').disabled = true;
+
+    var bpPromise = bpSessionFile
+      ? fileToBase64(bpSessionFile)
+      : Promise.resolve(bpB64Saved);
+
+    Promise.all([
+      fileToBase64(rubricFile),
+      fileToBase64(exemplarFile),
+      bpPromise
+    ]).then(function(r) {
+      var rubricB64  = r[0];
+      var exemplarB64 = r[1];
+      var bpB64      = r[2];
+      var postText   = document.getElementById('post-text').value.trim();
+      var studentName = document.getElementById('student-name').value.trim();
+
+      setStatus('Assessing post against rubric…');
+
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-allow-cors': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: rubricB64 },  title: 'Assessment Rubric' },
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: exemplarB64 }, title: 'Exemplar Blog Post' },
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: bpB64 },       title: 'Best Practices' },
+              { type: 'text', text: 'You are a high school CTE teacher assessing a student blog post.\n\nYou have been provided three reference documents:\n1. Assessment Rubric — defines exactly 5 criteria with names and scoring scales\n2. Exemplar Blog Post — a high-quality reference post\n3. Best Practices — a list of best practices the student should demonstrate\n\n## HOW TO ASSESS THE BEST PRACTICES CRITERION\n\nA student cites a best practice in one of two ways:\n\n1. KEYWORD CITATION (partial credit): The student uses a keyword from the Best Practices list (e.g., collaboration, creativity, problem-solving, planning, communication, critical thinking, etc.) anywhere in their post. Each unique keyword found counts as one cited best practice for that entry.\n\n2. FULL CITATION (full credit): The student uses a keyword AND writes at least one sentence explaining HOW they applied or experienced that best practice. Example: \'Today I used problem-solving when our equipment stopped working — I troubleshot the cable connections before asking for help.\'\n\nWhen scoring the Best Practices criterion:\n- Identify every best-practice keyword present in the student\'s post\n- For each keyword, determine whether the student also wrote a sentence explaining how they applied it\n- Keyword only = partial credit for that practice; Keyword + explanation sentence = full credit for that practice\n- Report exactly which keywords were found, which had explanations, and which were keyword-only\n- Base the criterion score on the proportion of practices that earned full credit vs. partial credit vs. missing\n\nFor ALL other criteria, score according to the rubric and exemplar as usual.\n\nSTUDENT BLOG POST TO ASSESS:\n' + postText + '\n\nScore this post against all 5 rubric criteria. Respond with ONLY valid JSON — no markdown fences:\n{\n  "overallGrade": "grade using the rubric\'s own scale",\n  "overallComment": "2-3 sentence overall impression, noting how well the student cited and explained Best Practices",\n  "criteria": [\n    {"name":"exact criterion name from rubric","score":0,"maxScore":0,"comment":"2-4 sentences of specific feedback. For the Best Practices criterion, list which keywords were found, which had explanation sentences (full credit), and which were keyword-only (partial credit)."}\n  ],\n  "suggestions": [\n    "Specific actionable suggestion 1 — if Best Practices need work, remind the student to both use a keyword AND write a sentence explaining how they applied it",\n    "Specific actionable suggestion 2",\n    "Specific actionable suggestion 3",\n    "Specific actionable suggestion 4"\n  ]\n}\ncriteria must have exactly 5 items in rubric order.' }
+            ]
+          }]
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.error) throw new Error(data.error.message);
+        var raw = '';
+        for (var i = 0; i < data.content.length; i++) {
+          if (data.content[i].type === 'text') { raw = data.content[i].text; break; }
+        }
+        var match = raw.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('Unexpected response format from AI.');
+        var parsed = JSON.parse(match[0]);
+        setStatus('');
+        showResults(parsed, studentName);
+      })
+      .catch(function(e) {
+        setError('Assessment failed: ' + e.message);
+        setStatus('');
+        document.getElementById('assess-btn').disabled = false;
+      });
+
+    }).catch(function() {
+      setError('Failed to read PDF files. Please re-upload them.');
+      setStatus('');
+      document.getElementById('assess-btn').disabled = false;
+    });
+  }
+
+  // ── Show results ──
+  function showResults(results, studentName) {
+    document.getElementById('form-section').classList.add('hidden');
+    document.getElementById('api-box').classList.add('hidden');
+    document.getElementById('bp-box').classList.add('hidden');
+    document.getElementById('results-section').classList.remove('hidden');
+
+    document.getElementById('grade-value').textContent = results.overallGrade || '—';
+    document.getElementById('overall-comment').textContent = results.overallComment || '';
+
+    var list = document.getElementById('criteria-list');
+    list.innerHTML = '';
+    (results.criteria || []).forEach(function(c, i) {
+      var pct = c.score / c.maxScore;
+      var cls = pct >= 0.75 ? 'score-high' : pct >= 0.5 ? 'score-mid' : 'score-low';
+      var card = document.createElement('div');
+      card.className = 'criterion';
+      card.innerHTML =
+        '<div class="criterion-header" onclick="toggleCriterion(this)">' +
+          '<span class="criterion-num">' + (i+1) + '</span>' +
+          '<span class="criterion-name">' + esc(c.name) + '</span>' +
+          '<span class="criterion-score ' + cls + '">' + c.score + '/' + c.maxScore + '</span>' +
+          '<span class="criterion-chevron">&#9654;</span>' +
+        '</div>' +
+        '<div class="criterion-body hidden">' + esc(c.comment) + '</div>';
+      list.appendChild(card);
+    });
+
+    var ul = document.getElementById('suggestions-list');
+    ul.innerHTML = '';
+    (results.suggestions || []).forEach(function(s) {
+      var li = document.createElement('li'); li.textContent = s; ul.appendChild(li);
+    });
+
+    if (reportObjectUrl) URL.revokeObjectURL(reportObjectUrl);
+    var html = buildReportHTML(results, studentName);
+    var blob = new Blob([html], { type: 'text/html' });
+    reportObjectUrl = URL.createObjectURL(blob);
+    var safeName = studentName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '') || 'student';
+    var link = document.getElementById('download-link');
+    link.href = reportObjectUrl;
+    link.download = 'blog-assessment-' + safeName + '.html';
+  }
+
+  function toggleCriterion(header) {
+    var body = header.nextElementSibling;
+    var chevron = header.querySelector('.criterion-chevron');
+    body.classList.toggle('hidden');
+    chevron.classList.toggle('open');
+  }
+
+  function handleReset() {
+    document.getElementById('results-section').classList.add('hidden');
+    document.getElementById('form-section').classList.remove('hidden');
+    document.getElementById('api-box').classList.remove('hidden');
+    document.getElementById('bp-box').classList.remove('hidden');
+    setError('');
+    if (reportObjectUrl) { URL.revokeObjectURL(reportObjectUrl); reportObjectUrl = null; }
+    checkReady();
+  }
+
+  function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Build downloadable report ──
+  function buildReportHTML(results, studentName) {
+    var date = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+    var criteriaRows = (results.criteria || []).map(function(c, i) {
+      var pct = c.score / c.maxScore;
+      var color = pct >= 0.75 ? '#2d7a3a' : pct >= 0.5 ? '#b07a10' : '#c1440e';
+      return '<div style="background:#f0ece3;border:1px solid #d4cfc5;border-radius:6px;padding:14px 16px;margin-bottom:10px;page-break-inside:avoid;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">' +
+          '<span style="font-weight:700;font-size:11pt;">' + (i+1) + '. ' + esc(c.name) + '</span>' +
+          '<span style="font-family:monospace;font-size:11pt;font-weight:700;color:' + color + ';">' + c.score + '/' + c.maxScore + '</span>' +
+        '</div>' +
+        '<div style="border-top:1px solid #d4cfc5;padding-top:8px;font-size:10pt;line-height:1.6;color:#3a3530;">' + esc(c.comment) + '</div>' +
+      '</div>';
+    }).join('');
+
+    var suggestionRows = (results.suggestions || []).map(function(s) {
+      return '<div style="display:flex;gap:10px;margin-bottom:8px;font-size:10pt;line-height:1.55;">' +
+        '<span style="color:#d4a843;font-family:monospace;font-weight:700;flex-shrink:0;">&#8594;</span>' +
+        '<span style="color:#3a3530;">' + esc(s) + '</span></div>';
+    }).join('');
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
+      '<title>Blog Post Assessment' + (studentName ? ' \u2014 ' + studentName : '') + '</title>' +
+      '<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;font-size:11pt;color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}@media print{body{margin:0;}.no-print{display:none!important;}}@page{margin:1.8cm 2cm;}</style>' +
+      '</head><body>' +
+      '<div style="background:#1a1714;color:#f5f0e8;padding:16px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">' +
+        '<div><div style="font-size:18pt;font-weight:700;">Blog Post Assessment</div>' +
+        (studentName ? '<div style="font-family:monospace;font-size:10pt;color:#d4a843;margin-top:5px;">' + esc(studentName) + '</div>' : '') +
+        '</div><span style="font-family:monospace;font-size:9pt;color:#b4aa9b;">' + esc(date) + '</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:flex-start;gap:20px;margin-bottom:20px;padding:0 24px;">' +
+        '<div style="background:#d4a843;color:#1a1714;padding:10px 16px;border-radius:5px;text-align:center;min-width:90px;flex-shrink:0;">' +
+          '<div style="font-size:28pt;font-weight:700;line-height:1;">' + esc(results.overallGrade) + '</div>' +
+          '<div style="font-family:monospace;font-size:7pt;text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;">Overall Grade</div>' +
+        '</div>' +
+        '<div style="font-size:10.5pt;line-height:1.6;color:#222;padding-top:4px;flex:1;">' + esc(results.overallComment) + '</div>' +
+      '</div>' +
+      '<div style="border-top:1px solid #d4cfc5;margin:0 24px 16px;"></div>' +
+      '<div style="font-family:monospace;font-size:7.5pt;text-transform:uppercase;letter-spacing:0.12em;color:#8a8070;margin:0 24px 10px;">Rubric Criteria</div>' +
+      '<div style="padding:0 24px;">' + criteriaRows + '</div>' +
+      '<div style="border-top:1px solid #d4cfc5;margin:16px 24px;"></div>' +
+      '<div style="font-family:monospace;font-size:7.5pt;text-transform:uppercase;letter-spacing:0.12em;color:#8a8070;margin:0 24px 10px;">Suggestions for Next Post</div>' +
+      '<div style="padding:0 24px;margin-bottom:20px;"><div style="background:#fefbf4;border:1.5px solid #d4a843;border-radius:6px;padding:14px 16px;">' + suggestionRows + '</div></div>' +
+      '<div style="border-top:1px solid #d4cfc5;margin:0 24px;padding-top:10px;"><div style="font-family:monospace;font-size:8pt;color:#aaa;text-align:center;">Blog Post Assessment Report &middot; ' + esc(date) + '</div></div>' +
+      '<div class="no-print" style="text-align:center;margin:28px 24px 8px;"><button onclick="window.print()" style="background:#1a1714;color:#f5f0e8;border:none;border-radius:6px;padding:10px 28px;font-family:monospace;font-size:10pt;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;">Print / Save as PDF</button></div>' +
+      '</body></html>';
+  }
+</script>
+</body>
+</html>
